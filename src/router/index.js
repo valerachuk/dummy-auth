@@ -1,6 +1,6 @@
 import Vue from 'vue';
 import VueRouter from 'vue-router';
-import { SignIn, SignUp, Profile } from '@views';
+import { SignIn, SignUp, Profile, ChangePassword } from '@views';
 import { SystemState } from '@constants';
 import { navigateToDefaultSystemStatePath } from '@services';
 import store from '../store';
@@ -36,6 +36,14 @@ const routes = [
     component: Profile,
     meta: {
       allowedSystemStates: [SystemState.signedIn]
+    }
+  },
+  {
+    path: '/change-password',
+    name: 'ChangePassword',
+    component: ChangePassword,
+    meta: {
+      allowedSystemStates: [SystemState.passwordChange]
     }
   }
 ];

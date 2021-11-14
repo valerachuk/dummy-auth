@@ -100,13 +100,20 @@ const store = new Vuex.Store({
       navigateToDefaultSystemStatePath(router, store);
     },
 
-    changePassword ({ state, commit }, password) {
+    changePassword ({ state, commit, getters }, password) {
+      const passwordHash = stringHash(password);
+
+      if (getters.currentUser.passwordHash === passwordHash) {
+        return false;
+      }
+
       commit('UPDATE_USER', {
         login: state.currentUserLogin,
-        passwordHash: stringHash(password),
+        passwordHash,
         passwordChangedDate: new Date().toISOString()
       });
       navigateToDefaultSystemStatePath(router, store);
+      return true;
     }
   },
   getters: {
