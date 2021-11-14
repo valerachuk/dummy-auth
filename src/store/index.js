@@ -1,71 +1,82 @@
 import Vue from 'vue';
 import Vuex from 'vuex';
 import stringHash from 'string-hash';
+import {
+  LOCAL_STORAGE_USERS_DATABASE_KEY,
+  PASSWORD_EXPIRATION_TIME_MS,
+  LOCAL_STORAGE_CURRENT_USER_LOGIN_KEY,
+  SystemState
+} from '@constants';
+import { navigateToDefaultSystemStatePath } from '@services';
+import router from '../router';
 
 Vue.use(Vuex);
 
-const LOCAL_STORAGE_USER_KEY = 'usersDatabase';
-const PASSWORD_EXPIRATION_TIME_MS = 7 * 24 * 60 * 60;
-
-export default new Vuex.Store({
+const store = new Vuex.Store({
   state: {
     users: null,
-    currentUser: null
+    currentUserLogin: null
   },
   mutations: {
     SET_USERS (state, users) {
       state.users = users;
     },
+    UPDATE_USER (state, newUser) {
+      state.users = state.users.filter(user => user.login !== newUser.login);
+      state.users.push(newUser);
+    },
     ADD_USER (state, user) {
       state.users.push(user);
     },
-    SET_CURRENT_USER (state, user) {
-      state.currentUser = user;
+    SET_CURRENT_USER_LOGIN (state, login) {
+      state.currentUserLogin = login;
     }
   },
   actions: {
-    ensureUsersLoaded ({ commit, state }) {
-      if (state.users != null) {
-        return;
+    loadDatabase ({ state, commit }) {
+      if (state.users == null) {
+        const localStorageUsers = localStorage.getItem(LOCAL_STORAGE_USERS_DATABASE_KEY);
+        commit('SET_USERS', localStorageUsers != null ? JSON.parse(localStorageUsers) : []);
       }
 
-      const localStorageUsers = localStorage.getItem(LOCAL_STORAGE_USER_KEY);
-      if (localStorageUsers == null) {
-        commit('SET_USERS', []);
-        return;
+      if (state.currentUserLogin == null) {
+        const currentUser = localStorage.getItem(LOCAL_STORAGE_CURRENT_USER_LOGIN_KEY);
+        commit('SET_CURRENT_USER_LOGIN', currentUser ?? null);
       }
 
-      commit('SET_USERS', JSON.parse(localStorageUsers));
+      navigateToDefaultSystemStatePath(router, store);
     },
 
     addUser ({ commit, state }, newUser) {
       commit('ADD_USER', newUser);
-      localStorage.setItem(LOCAL_STORAGE_USER_KEY, JSON.stringify(state.users));
+      localStorage.setItem(LOCAL_STORAGE_USERS_DATABASE_KEY, JSON.stringify(state.users));
     },
 
-    async signIn ({ state, dispatch, commit, getters }, { login, password }) {
-      await dispatch('ensureUsersLoaded');
+    updateCurrentUser ({ commit }, newUserLogin) {
+      commit('SET_CURRENT_USER_LOGIN', newUserLogin);
 
+      if (newUserLogin != null) {
+        localStorage.setItem(LOCAL_STORAGE_CURRENT_USER_LOGIN_KEY, newUserLogin);
+        return;
+      }
+
+      localStorage.removeItem(LOCAL_STORAGE_CURRENT_USER_LOGIN_KEY);
+    },
+
+    async signIn ({ state, dispatch }, { login, password }) {
       const passwordHash = stringHash(password);
       const userWithValidCredentials = state.users.find(user => user.login === login && user.passwordHash === passwordHash);
       if (userWithValidCredentials == null) {
         return false;
       }
 
-      commit('SET_CURRENT_USER', userWithValidCredentials);
+      await dispatch('updateCurrentUser', userWithValidCredentials.login);
 
-      if (getters.isPasswordExpired) {
-        // push to change password form
-        return true;
-      }
-
-      // push to profile page
+      navigateToDefaultSystemStatePath(router, store);
       return true;
     },
 
     async signUp ({ dispatch, state, commit }, { login, password }) {
-      await dispatch('ensureUsersLoaded');
-
       const userExists = state.users.some(user => user.login === login);
       if (userExists) {
         return false;
@@ -78,27 +89,55 @@ export default new Vuex.Store({
       };
 
       dispatch('addUser', newUser);
-      commit('SET_CURRENT_USER', newUser);
+      await dispatch('updateCurrentUser', newUser.login);
+      navigateToDefaultSystemStatePath(router, store);
 
       return true;
     },
 
-    signOut ({ commit }) {
-      commit('SET_CURRENT_USER', null);
-      // push to login screen
+    async signOut ({ dispatch }) {
+      await dispatch('updateCurrentUser', null);
+      navigateToDefaultSystemStatePath(router, store);
+    },
+
+    changePassword ({ state, commit }, password) {
+      commit('UPDATE_USER', {
+        login: state.currentUserLogin,
+        passwordHash: stringHash(password),
+        passwordChangedDate: new Date().toISOString()
+      });
+      navigateToDefaultSystemStatePath(router, store);
     }
   },
   getters: {
     isSignedIn (state) {
-      return state.currentUser != null;
+      return state.currentUserLogin != null;
     },
 
-    isPasswordExpired (state, getters) {
+    isPasswordExpired (_, getters) {
       if (!getters.isSignedIn) {
         return null;
       }
 
-      return (new Date() - new Date(state.currentUser.passwordChangedDate)) > PASSWORD_EXPIRATION_TIME_MS;
+      return (new Date() - new Date(getters.currentUser.passwordChangedDate)) > PASSWORD_EXPIRATION_TIME_MS;
+    },
+
+    currentUser (state) {
+      return state.users.find(user => user.login === state.currentUserLogin);
+    },
+
+    currentSystemState (_, getters) {
+      if (!getters.isSignedIn) {
+        return SystemState.signedOut;
+      }
+
+      if (getters.isPasswordExpired) {
+        return SystemState.passwordChange;
+      }
+
+      return SystemState.signedIn;
     }
   }
 });
+
+export default store;
