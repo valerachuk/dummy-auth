@@ -1,27 +1,69 @@
-import Vue from 'vue'
-import VueRouter from 'vue-router'
-import Home from '../views/Home.vue'
+import Vue from 'vue';
+import VueRouter from 'vue-router';
+import { SignIn, SignUp, Profile, ChangePassword } from '@views';
+import { SystemState } from '@constants';
+import { navigateToDefaultSystemStatePath } from '@services';
+import store from '../store';
 
-Vue.use(VueRouter)
+Vue.use(VueRouter);
 
 const routes = [
   {
     path: '/',
-    name: 'Home',
-    component: Home
+    redirect: {
+      name: 'SignIn'
+    }
   },
   {
-    path: '/about',
-    name: 'About',
-    // route level code-splitting
-    // this generates a separate chunk (about.[hash].js) for this route
-    // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/About.vue')
+    path: '/sign-in',
+    name: 'SignIn',
+    component: SignIn,
+    meta: {
+      allowedSystemStates: [SystemState.signedOut]
+    }
+  },
+  {
+    path: '/sign-up',
+    name: 'SignUp',
+    component: SignUp,
+    meta: {
+      allowedSystemStates: [SystemState.signedOut]
+    }
+  },
+  {
+    path: '/profile',
+    name: 'Profile',
+    component: Profile,
+    meta: {
+      allowedSystemStates: [SystemState.signedIn]
+    }
+  },
+  {
+    path: '/change-password',
+    name: 'ChangePassword',
+    component: ChangePassword,
+    meta: {
+      allowedSystemStates: [SystemState.passwordChange]
+    }
   }
-]
+];
 
 const router = new VueRouter({
   routes
-})
+});
 
-export default router
+router.beforeEach((to, from, next) => {
+  if (!('allowedSystemStates' in to.meta)) {
+    next();
+    return;
+  }
+
+  if (to.meta.allowedSystemStates.some(systemState => systemState === store.getters.currentSystemState)) {
+    next();
+    return;
+  }
+
+  navigateToDefaultSystemStatePath(router, store);
+});
+
+export default router;

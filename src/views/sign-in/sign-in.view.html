@@ -1,0 +1,26 @@
+<v-card class="mx-auto mt-12">
+  <v-card-title> Sign In </v-card-title>
+  <v-card-text>
+    <v-form ref="form">
+      <v-text-field
+        label="Login"
+        v-model="login"
+        :rules="loginValidationRules"
+        :error-messages="isUsernameOrPasswordInvalid ? 'Invalid username or password' : ''"
+        @input="isUsernameOrPasswordInvalid = false"
+      ></v-text-field>
+      <showable-password-field
+        label="Password"
+        v-model="password"
+        :rules="passwordValidationRules"
+        :error-messages="isUsernameOrPasswordInvalid ? 'Invalid username or password' : ''"
+        @input="isUsernameOrPasswordInvalid = false"
+      ></showable-password-field>
+    </v-form>
+  </v-card-text>
+  <v-card-actions>
+    <v-btn text color="primary" @click="onSignIn"> Sign In </v-btn>
+    <v-spacer></v-spacer>
+    <v-btn text :to="{name: 'SignUp'}"> Sign up instead </v-btn>
+  </v-card-actions>
+</v-card>
